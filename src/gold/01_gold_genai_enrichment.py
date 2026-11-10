@@ -1,20 +1,18 @@
-# enrich · task run 32762691586449 · SUCCESS
+# Databricks notebook source
+# MAGIC %md
+# MAGIC # 01 · Enrich new products (GenAI)
+# MAGIC For every product that is **new** in silver (never enriched, or enriched under an older definitions version):
+# MAGIC 1. **Tier 1 – exact barcode** join to the public reference (free, deterministic).
+# MAGIC 2. **Tier 2 – semantic name match** for private label / missing barcodes: `ai_translate` the descriptor,
+# MAGIC    embed it, retrieve the top-3 reference candidates by cosine similarity.
+# MAGIC 3. **Resolve** with `ai_query` (strict JSON): which candidate is the same product, positioning, hero ingredient.
+# MAGIC    The LLM never writes numbers; nutrition comes from the reference.
+# MAGIC 4. **Judge** with a cheaper model: is the match really the same product?
+# MAGIC 5. **Classify** with deterministic rules (`config/attributes.yml`) and **score** confidence from evidence.
+# MAGIC 6. MERGE into `gold_product_enrichment` (human-verified rows are never overwritten) and log run metrics.
 
-Notebook: `4994e7af-1bf4-4c83-97c2-6df3b2a34cfb` (language: python)
+# COMMAND ----------
 
-# 01 · Enrich new products (GenAI)
-For every product that is **new** in silver (never enriched, or enriched under an older definitions version):
-1. **Tier 1 – exact barcode** join to the public reference (free, deterministic).
-2. **Tier 2 – semantic name match** for private label / missing barcodes: `ai_translate` the descriptor,
-   embed it, retrieve the top-3 reference candidates by cosine similarity.
-3. **Resolve** with `ai_query` (strict JSON): which candidate is the same product, positioning, hero ingredient.
-   The LLM never writes numbers; nutrition comes from the reference.
-4. **Judge** with a cheaper model: is the match really the same product?
-5. **Classify** with deterministic rules (`config/attributes.yml`) and **score** confidence from evidence.
-6. MERGE into `gold_product_enrichment` (human-verified rows are never overwritten) and log run metrics.
-
-
-```python
 dbutils.widgets.text("catalog", "milica_test")
 dbutils.widgets.text("schema", "fe_bar_northbeam")
 dbutils.widgets.text("model_extract", "databricks-gpt-5-4-mini")
@@ -27,7 +25,7 @@ dbutils.widgets.text("price_judge_in", "0.05")
 dbutils.widgets.text("price_judge_out", "0.40")
 dbutils.widgets.text("price_embed_in", "0.10")
 dbutils.widgets.text("price_translate_per_1k_chars", "0.01")
-# Business baseline: manual analyst research per product (minutes) - see docs/VALUE.md
+# Business baseline: manual analyst research per product (minutes) - see BUILD.md section 4
 dbutils.widgets.text("manual_minutes_per_product", "6")
 
 W = {k: dbutils.widgets.get(k) for k in [
@@ -35,9 +33,9 @@ W = {k: dbutils.widgets.get(k) for k in [
     "price_resolve_out", "price_judge_in", "price_judge_out", "price_embed_in",
     "price_translate_per_1k_chars", "manual_minutes_per_product"]}
 spark.sql(f"USE {W['catalog']}.{W['schema']}")
-```
 
-```python
+# COMMAND ----------
+
 import json, os, sys, time, uuid
 import numpy as np
 import pandas as pd
@@ -52,12 +50,13 @@ from enrichment_lib.prompts import JUDGE_SCHEMA, RESOLVE_SCHEMA, judge_prompt, r
 
 DEFS = yaml.safe_load(open("../../config/attributes.yml"))
 t0, run_id = time.time(), str(uuid.uuid4())[:8]
-```
 
-### Worklist: only products not yet enriched under the current definitions
+# COMMAND ----------
 
+# MAGIC %md ### Worklist: only products not yet enriched under the current definitions
 
-```python
+# COMMAND ----------
+
 work = spark.sql(f"""
   SELECT s.market, s.item_id, s.gtin13, s.descriptor, s.source_language, s.brand, s.is_private_label,
          s.manufacturer, s.size_text, s.pack_count_text, s.unit_weight_g, s.delivery_week
@@ -70,20 +69,13 @@ print(f"worklist: {n_work} new products")
 display(work.groupBy("market", "delivery_week").count().orderBy("market"))
 if n_work == 0:
     dbutils.notebook.exit(json.dumps({"products": 0}))
-```
-**Output:**
-```text
-worklist: 460 new products
-```
-| market | delivery_week | count |
-|---|---|---|
-| ES | 2026W40 | 230 |
-| US | 2026W40 | 230 |
 
-### Tier 1 · exact barcode   ·   Tier 2 · translate + embed + top-3 name candidates
+# COMMAND ----------
 
+# MAGIC %md ### Tier 1 · exact barcode   ·   Tier 2 · translate + embed + top-3 name candidates
 
-```python
+# COMMAND ----------
+
 # Translate local-language descriptors once (Databricks AI function), keep English as is.
 work = work.withColumn(
     "descriptor_en",
@@ -122,17 +114,13 @@ for row in need_names.itertuples():
     sims = R @ q
     top = np.argsort(-sims)[:3]
     name_candidates[(row.market, row.item_id)] = [(emb["gtin13"].iloc[i], float(sims[i])) for i in top]
-```
-**Output:**
-```text
-tier 1 exact barcode matches: 352
-tier 2 name matching for 108 products against 1155 reference products
-```
 
-### Resolve (gpt-5.4-mini, strict JSON) and judge (gpt-5.4-nano)
+# COMMAND ----------
 
+# MAGIC %md ### Resolve (gpt-5.4-mini, strict JSON) and judge (gpt-5.4-nano)
 
-```python
+# COMMAND ----------
+
 items = work.toPandas()
 exact_by_key = {(r.market, r.item_id): r for r in exact.itertuples()}
 REF_COLS = ["brand", "product_name", "pack_quantity", "ingredients_text", "serving_g",
@@ -188,16 +176,13 @@ spark.sql(f"""
 judged = spark.table("work_judged").toPandas().set_index(["market", "item_id"])
 errors = int(resolved["res"].map(lambda x: bool(x and x["errorMessage"])).sum())
 print(f"resolved {len(resolved)} products, {errors} LLM errors")
-```
-**Output:**
-```text
-resolved 460 products, 0 LLM errors
-```
 
-### Classify (rules) and score (evidence-based confidence)
+# COMMAND ----------
 
+# MAGIC %md ### Classify (rules) and score (evidence-based confidence)
 
-```python
+# COMMAND ----------
+
 min_conf = DEFS["review"]["min_confidence"]
 out, chosen = [], set()
 for r in resolved.itertuples():
@@ -275,13 +260,14 @@ ev["chosen"] = [(a, b, c) in chosen for a, b, c in zip(ev.market, ev.item_id, ev
 EV_SCHEMA = ("market string, item_id string, delivery_week string, candidate_rank int, match_type string, "
              "candidate_gtin13 string, candidate_name string, similarity double, chosen boolean")
 (spark.createDataFrame(clean(ev[[c.split()[0] for c in EV_SCHEMA.split(", ")]]), schema=EV_SCHEMA)
- .
-```
+ .withColumn("created_at", F.current_timestamp()).write.mode("append").saveAsTable("evidence"))
 
-### Run metrics: cost, runtime, review rate, analyst hours saved
+# COMMAND ----------
 
+# MAGIC %md ### Run metrics: cost, runtime, review rate, analyst hours saved
 
-```python
+# COMMAND ----------
+
 tok = lambda s: len(s or "") / 4.0  # ~4 characters per token (estimate; exact usage in system.serving)
 f = lambda k: float(W[k])
 cost_resolve = sum(tok(p) * f("price_resolve_in") + 120 * f("price_resolve_out") for p in resolved["prompt"]) / 1e6
@@ -307,61 +293,19 @@ spark.createDataFrame(pd.DataFrame(metrics)).withColumn("created_at", F.current_
      .write.mode("append").saveAsTable("run_metrics")
 display(pd.DataFrame(metrics))
 print(json.dumps(metrics, indent=2))
-```
-**Output:**
-| run_id | delivery_week | market | products | barcode_exact | name_match | no_evidence | llm_calls | est_cost_usd | cost_per_1000_usd | runtime_s | avg_confidence | review_rate | analyst_hours_saved |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| dbb17e02 | 2026W40 | ES | 230 | 178 | 38 | 14 | 460 | 0.1502 | 0.65 | 143.0 | 68.2 | 0.374 | 14.4 |
-| dbb17e02 | 2026W40 | US | 230 | 174 | 48 | 8 | 460 | 0.1502 | 0.65 | 143.0 | 70.9 | 0.361 | 14.7 |
-```text
-[
-  {
-    "run_id": "dbb17e02",
-    "delivery_week": "2026W40",
-    "market": "ES",
-    "products": 230,
-    "barcode_exact": 178,
-    "name_match": 38,
-    "no_evidence": 14,
-    "llm_calls": 460,
-    "est_cost_usd": 0.1502,
-    "cost_per_1000_usd": 0.65,
-    "runtime_s": 143.0,
-    "avg_confidence": 68.2,
-    "review_rate": 0.374,
-    "analyst_hours_saved": 14.4
-  },
-  {
-    "run_id": "dbb17e02",
-    "delivery_week": "2026W40",
-    "market": "US",
-    "products": 230,
-    "barcode_exact": 174,
-    "name_match": 48,
-    "no_evidence": 8,
-    "llm_calls": 460,
-    "est_cost_usd": 0.1502,
-    "cost_per_1000_usd": 0.65,
-    "runtime_s": 143.0,
-    "avg_confidence": 70.9,
-    "review_rate": 0.361,
-    "analyst_hours_saved": 14.7
-  }
-]
-```
 
-### Sample of enriched products
+# COMMAND ----------
 
+# MAGIC %md ### Sample of enriched products
 
-```python
+# COMMAND ----------
+
 display(spark.sql("""
   SELECT market, item_id, descriptor_en, evidence_tier, kcal_per_bar, protein_g_per_bar, segment, sub_segment,
          claimed_ingredient, confidence_score, needs_review, explanation
   FROM gold_product_enrichment ORDER BY updated_at DESC, confidence_score DESC LIMIT 15
 """))
+
+# COMMAND ----------
+
 dbutils.notebook.exit(json.dumps({"products": int(len(gold_new)), "runtime_s": runtime}))
-```
-**Output:**
-```text
-notebook exit value: {"products": 460, "runtime_s": 143.0}
-```

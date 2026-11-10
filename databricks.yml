@@ -24,7 +24,7 @@ variables:
     description: Lakebase (managed Postgres) instance for operational serving
     default: northbeam-enrichment
   genie_space_id:
-    description: Genie space created by scripts/create_genie_space.py
+    description: Genie space created by scripts/genie_agent_space.py
     default: 01f1dd21230215f2b2d4ece904a37498
   warehouse_id:
     description: SQL warehouse for the app and Genie

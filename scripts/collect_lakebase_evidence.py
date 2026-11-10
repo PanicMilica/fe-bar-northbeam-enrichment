@@ -55,5 +55,5 @@ with conn.cursor() as cur:
     out += table(cur, """SELECT grantee, table_schema, table_name, string_agg(privilege_type, ', ' ORDER BY privilege_type) AS privileges
                          FROM information_schema.role_table_grants WHERE grantee NOT IN ('PUBLIC', current_user)
                            AND table_schema IN ('public', 'review') GROUP BY 1, 2, 3 ORDER BY 2, 3""")
-Path(__file__).resolve().parents[1].joinpath("evidence/lakebase_serving.md").write_text("\n".join(out))
+Path(__file__).resolve().parents[1].joinpath(".exports/lakebase_serving.md").write_text("\n".join(out))
 print("wrote evidence/lakebase_serving.md")

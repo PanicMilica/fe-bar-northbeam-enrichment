@@ -1,6 +1,6 @@
 """Create (or update) the Northbeam Genie space: natural-language access to the enriched product master.
 
-Usage: python scripts/create_genie_space.py <profile> [space_id]
+Usage: python scripts/genie_agent_space.py <profile> [space_id]
 Prints the space id; put it in databricks.yml (variable genie_space_id) for the app.
 """
 import json, subprocess, sys, uuid

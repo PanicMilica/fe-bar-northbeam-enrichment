@@ -33,13 +33,13 @@ databricks database create-synced-database-table --json '{"name":"northbeam_lake
   "spec":{"source_table_full_name":"milica_test.fe_bar_northbeam.gold_product_enrichment","primary_key_columns":["market","item_id"],
   "scheduling_policy":"TRIGGERED","new_pipeline_spec":{"storage_catalog":"milica_test","storage_schema":"fe_bar_northbeam"}}}' -p dev
 #    Postgres: review.review_decisions + grants for the app service principal (see evidence/lakebase_serving.md)
-python3 scripts/create_genie_space.py dev                # put the id in databricks.yml (genie_space_id)
+python3 scripts/genie_agent_space.py dev                # put the id in databricks.yml (genie_space_id)
 databricks bundle deploy -p dev && databricks bundle run northbeam_review_app -p dev
 
-# 6. Evidence (text, committed)
+# 6. Evidence: raw exports go to .exports/ (git-ignored); the curated text evidence in evidence/ is built from them
 python3 scripts/export_run_evidence.py dev <job_run_id> <label>
 python3 scripts/collect_platform_evidence.py dev <warehouse_id> <pipeline_id>
-python3 scripts/ask_genie.py dev <space_id> evidence/genie_answers.md
+python3 scripts/ask_genie.py dev <space_id> .exports/genie_answers.md
 .venv/bin/python scripts/collect_lakebase_evidence.py dev northbeam-enrichment
 .venv/bin/python scripts/collect_app_evidence.py dev northbeam-enrichment-console northbeam-enrichment
 ```

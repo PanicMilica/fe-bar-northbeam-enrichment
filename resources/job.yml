@@ -28,7 +28,7 @@ resources:
         - task_key: setup_and_governance
           depends_on: [{task_key: ingest}]
           notebook_task:
-            notebook_path: ../src/notebooks/00_setup_and_governance.sql
+            notebook_path: ../src/gold/00_gold_governance.sql
             warehouse_id: ${var.warehouse_id}
             base_parameters:
               catalog: ${var.catalog}
@@ -39,7 +39,7 @@ resources:
           depends_on: [{task_key: setup_and_governance}]
           environment_key: default
           notebook_task:
-            notebook_path: ../src/notebooks/01_enrich.py
+            notebook_path: ../src/gold/01_gold_genai_enrichment.py
             base_parameters:
               catalog: ${var.catalog}
               schema: ${var.schema}
@@ -51,7 +51,7 @@ resources:
           depends_on: [{task_key: enrich}]
           environment_key: default
           notebook_task:
-            notebook_path: ../src/notebooks/02_apply_reviews_and_sync.py
+            notebook_path: ../src/lakebase/02_lakebase_sync_reviews.py
             base_parameters:
               catalog: ${var.catalog}
               schema: ${var.schema}
@@ -61,7 +61,7 @@ resources:
           depends_on: [{task_key: apply_reviews_and_sync}]
           environment_key: default
           notebook_task:
-            notebook_path: ../src/notebooks/03_evaluate.py
+            notebook_path: ../src/eval/03_model_eval.py
             base_parameters:
               catalog: ${var.catalog}
               schema: ${var.schema}

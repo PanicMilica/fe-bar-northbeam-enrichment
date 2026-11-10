@@ -3,7 +3,7 @@ resources:
     northbeam_review_app:
       name: northbeam-enrichment-console
       description: Northbeam analysts review AI-enriched snack-bar products (Lakebase) and ask Genie.
-      source_code_path: ../app
+      source_code_path: ../lakebase_app
       resources:
         - name: lakebase
           database:

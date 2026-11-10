@@ -53,5 +53,5 @@ with conn.cursor() as cur:
         out += ["| " + " | ".join("" if v is None else str(v)[:90] for v in r) + " |" for r in cur.fetchall()] + [""]
 app_lines = [l for l in logs.splitlines() if "[BUILD]" in l and ("Deployment" in l or "Starting app" in l or "scan" in l)][-6:]
 out += ["## Deployment log (last lines)", "```text", *app_lines, "```"]
-Path(__file__).resolve().parents[1].joinpath("evidence/app.md").write_text("\n".join(out))
-print("wrote evidence/app.md")
+Path(__file__).resolve().parents[1].joinpath(".exports/app.md").write_text("\n".join(out))
+print("wrote .exports/app.md")

@@ -9,7 +9,7 @@ from pathlib import Path
 
 PROFILE, WH, PIPELINE = sys.argv[1], sys.argv[2], sys.argv[3]
 CS = "milica_test.fe_bar_northbeam"
-OUT = Path(__file__).resolve().parents[1] / "evidence"
+OUT = Path(__file__).resolve().parents[1] / ".exports"  # raw query results; curated into evidence/
 
 
 def sql(statement):
@@ -33,6 +33,7 @@ def section(title, statement, note=""):
     return f"## {title}\n{note}\n```sql\n{statement.strip()}\n```\n\n{sql(statement)}\n"
 
 
+OUT.mkdir(exist_ok=True)
 stamp = f"_Collected {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC} from workspace <workspace> (SQL warehouse {WH})._\n"
 
 # ---------------------------------------------------------------- Lakeflow

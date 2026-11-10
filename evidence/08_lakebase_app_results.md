@@ -1,4 +1,5 @@
-# Databricks App evidence: `northbeam-enrichment-console`
+# Evidence 8 · Databricks App `northbeam-enrichment-console` (deployed and running)
+Code: [lakebase_app/app.py](../lakebase_app/app.py) (Streamlit) · bundle resource [resources/app.yml](../resources/app.yml).
 _Collected 2026-11-10 17:48 UTC._
 
 * URL: https://<app-url> (workspace SSO; not public)
@@ -52,8 +53,6 @@ SELECT g.market, g.item_id, g.descriptor_en, g.evidence_tier, g.matched_product_
 | ES | ES-100049 | BARRINOLAS 48G 1UN | none |  |  |  | 0 |
 | ES | ES-100074 | Cereal Bars with Grains and Almonds Carrefour France 25g 4 Units | name_match | Protein bar | 4.0 | NOURISH | 0 |
 | ES | ES-100147 | Oat Muesli with Cranberries and Pumpkin Seeds Hero 35g 1unit | none |  |  | NOT A SNACK BAR | 0 |
-| ES | ES-100186 | BREAKFAST BAR ALMONDS X6 40G 1UN | none |  |  |  | 0 |
-| ES | ES-100239 | BLACK CHOCOLATE 21G 6UN | none |  |  | NOT A SNACK BAR | 0 |
 
 ## Recent decisions saved from the app (tab 2)
 ```sql

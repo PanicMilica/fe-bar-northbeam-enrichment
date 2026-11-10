@@ -10,7 +10,7 @@ import base64, html, json, re, subprocess, sys, urllib.parse
 from pathlib import Path
 
 PROFILE, RUN_ID, LABEL = sys.argv[1], sys.argv[2], sys.argv[3]
-OUT = Path(__file__).resolve().parents[1] / "evidence" / "job_runs" / LABEL
+OUT = Path(__file__).resolve().parents[1] / ".exports" / "job_runs" / LABEL  # raw exports; curated into evidence/
 OUT.mkdir(parents=True, exist_ok=True)
 
 

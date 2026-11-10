@@ -1,113 +1,59 @@
 # Northbeam Retail Insights: AI product enrichment for snack-bar category insights
 
-**Industry:** Consumer Goods / Retail measurement · **Buyer:** Chief Data & Product Officer (executive sponsor) and Head of Category Insights (domain owner)
+**Industry:** Consumer Goods / retail measurement (FMCG snack bars) · **Buyer:** Chief Data & Product Officer
+(executive sponsor) and Head of Category Insights (domain owner) · Fictional company; all data synthetic or public
+(Open Food Facts, ODbL). No customer data.
 
-> Northbeam is a fictional company; the scenario mirrors a real FE engagement pattern. All data is synthetic,
-> built from the public [Open Food Facts](https://world.openfoodfacts.org) database (ODbL). No customer data.
+## The business problem
+Northbeam harmonises weekly retailer product deliveries for FMCG snack brands and sells them category insights such
+as *"high-protein bars grew 12% in Spain"*. Retailer files say **what** sold, but not **calories and protein per bar or
+the nutrition segment**, the attributes brand clients pay for. Analysts research each new product by hand (~6 minutes,
+~120 hours a week), so there is a backlog, reports ship days late, and private label (12% of items, no barcode) is
+rarely enriched.
 
-## 1. The business problem
-
-Northbeam harmonises weekly retailer product deliveries for FMCG snack brands and sells them category insights
-("high-protein bars grew 12% in Spain"). Retailer files tell Northbeam *what* was sold, but not **calories and
-protein per bar or the nutrition segment**, the attributes its brand clients actually pay for. Today analysts
-research every new product by hand: about **6 minutes per product**, a **multi-week backlog**, and insight
-reports that ship days after the data arrives. Private-label products (12% of items) have no barcode at all.
-
-## 2. The outcome (measured on 3 weekly deliveries, 553 products, 2 markets)
-
-| KPI the buyer cares about | Before (manual) | With this solution |
+## The outcome (measured: 3 weekly deliveries, 553 products, Spain + US)
+| KPI | Manual today | With this solution |
 |---|---|---|
-| Products enriched without an analyst | 0% | **63%** automatically, **100% precision** (every auto-enriched product correct vs. ground truth) |
-| Wrong matches reaching client reports | depends on analyst | **0**: 100% of wrong AI matches were caught by the review queue |
-| Time from delivery to enriched data | days to weeks | **~7 minutes** per weekly run (pipeline + enrichment + sync) |
-| Cost per 1,000 products | ~100 analyst hours | **~$0.65** in model calls + a few minutes of serverless compute |
-| Analyst hours saved (this sample) | | **34.5 h** across 3 deliveries; ≈ **3.3 FTE (~$215k) per year** at Northbeam scale (see [docs/VALUE.md](docs/VALUE.md)) |
-| Explainability | analyst notes | every value has an evidence source, a 0-100 confidence score and a plain-English explanation |
+| Products enriched with no analyst touch | 0% | **63%** |
+| Precision of auto-enriched products | n/a | **100%** vs. ground truth (protein within 1 g: 99.7%) |
+| Wrong AI matches reaching client data | n/a | **0**: 100% caught by the review queue |
+| Delivery → enriched data | days to weeks | **~7 minutes** per weekly run |
+| Model cost per 1,000 products | ~100 analyst hours | **~$0.65** |
+| At Northbeam scale (assumptions in BUILD.md) | 120 analyst h / week | **105 h / week saved ≈ 3.3 FTE ≈ $215k / year**, plus ~$300k ARR potential |
 
-Analysts no longer research products; they **review the 37% the AI is unsure about**, in a review app, and their
-decisions are never overwritten by later runs. Results: [evidence/job_runs/2026W42_final_evaluation](evidence/job_runs/2026W42_final_evaluation/evaluate.md).
+Analysts stop researching and only **review the 37% the AI is unsure about** in a Databricks App. Their decisions
+are final, and every value has a source, a 0-100 confidence score and a plain-English explanation.
 
-## 3. The end-to-end journey (one integrated loop, not separate demos)
-
+## One integrated journey: raw data → Lakeflow → Unity Catalog → GenAI → Lakebase → Genie → App
 ```
- retailer CSVs (ES, US)          public Open Food Facts snapshot
-        │ Auto Loader                     │ Auto Loader
-        ▼                                 ▼
- ┌──────────────────────── LAKEFLOW DECLARATIVE PIPELINE ────────────────────────┐
- │ bronze_delivery_es/us ─▶ v_delivery_items (expectations) ─▶ AUTO CDC ─▶       │
- │                                         silver_product_item (1 row per item)  │
- │ bronze_public_reference ─▶ silver_public_reference (expect_or_drop quality)   │
- └───────────────────────────────────────────────────────────────────────────────┘
-        │ UNITY CATALOG: comments, tags, row filter by market, masked reviewer, lineage
-        ▼
- ┌──────────────────────── GEN AI ENRICHMENT (weekly job) ───────────────────────┐
- │ only NEW products ─▶ tier 1 exact barcode ─▶ tier 2 ai_translate + embeddings │
- │ (bge-large) top-3 ─▶ ai_query gpt-5.4-mini resolves the product (strict JSON)  │
- │ ─▶ gpt-5.4-nano judge ─▶ deterministic segment rules ─▶ confidence 0-100       │
- │ ─▶ MERGE gold_product_enrichment · MLflow evaluation vs. golden set           │
- └───────────────────────────────────────────────────────────────────────────────┘
-        │ synced table (TRIGGERED)                       ▲ decisions applied to gold
-        ▼                                                │ (human_verified, confidence 100)
- ┌──────── LAKEBASE (Postgres) ────────┐                 │
- │ public.gold_product_enrichment      │────────────────┐│
- │ review.review_decisions (app writes)│◀───────┐       ││
- └─────────────────────────────────────┘        │       ││
-        ▼                                       │       ││
- ┌──────── DATABRICKS APP ─────────────┐  ┌─────┴───────┴┴─── GENIE AGENT ────────┐
- │ Overview · Review queue (approve /  │  │ "What is the high-protein share in    │
- │ correct / reject) · Ask Genie       │──│  Spain vs the US?" over gold +        │
- └─────────────────────────────────────┘  │  metric view mv_enrichment_kpis       │
-                                          └───────────────────────────────────────┘
+retailer CSVs (ES/US, weekly) + public product snapshot
+  └─▶ LAKEFLOW pipeline: Auto Loader bronze → expectations → AUTO CDC silver_product_item
+       └─▶ UNITY CATALOG: one governed schema, comments, tags, row filter, column mask, lineage
+            └─▶ GENAI (weekly job, only NEW products): exact barcode → ai_translate + embeddings top-3
+                 → ai_query gpt-5.4-mini resolves product (strict JSON) → gpt-5.4-nano judge
+                 → business rules → confidence → gold_product_enrichment → MLflow evaluation
+                 └─▶ LAKEBASE: gold synced to Postgres; app writes analyst decisions to Postgres
+                      └─▶ DATABRICKS APP (review queue, KPIs, Ask Genie) ──decisions──▶ job applies them to gold
+                      └─▶ GENIE AGENT over gold + KPI metric view: "high-protein share Spain vs US?" → 25.5% vs 24.9%
 ```
 
-| Stage | What it does here | Code | Execution evidence (text) |
-|---|---|---|---|
-| **Lakeflow** | Auto Loader ingest of weekly deliveries + public reference, 8 expectations, AUTO CDC to one row per item | [src/pipeline/ingest.py](src/pipeline/ingest.py) | [evidence/lakeflow_pipeline.md](evidence/lakeflow_pipeline.md) |
-| **Unity Catalog** | Comments on every table/column, tags, row filter by market, column mask on reviewer e-mail, lineage | [src/notebooks/00_setup_and_governance.sql](src/notebooks/00_setup_and_governance.sql) | [evidence/unity_catalog_governance.md](evidence/unity_catalog_governance.md) |
-| **GenAI** | `ai_translate`, embeddings, `ai_query` resolution + LLM judge, rules, confidence, MLflow evaluation | [src/notebooks/01_enrich.py](src/notebooks/01_enrich.py), [03_evaluate.py](src/notebooks/03_evaluate.py) | [evidence/job_runs/](evidence/job_runs/) |
-| **Lakebase** | Gold synced to Postgres for the app; app writes analyst decisions to Postgres; job applies them to gold | [src/notebooks/02_apply_reviews_and_sync.py](src/notebooks/02_apply_reviews_and_sync.py) | [evidence/lakebase_serving.md](evidence/lakebase_serving.md) |
-| **Genie Agent** | Space over gold, silver, run metrics and the KPI metric view, with instructions and example SQL | [scripts/create_genie_space.py](scripts/create_genie_space.py) | [evidence/genie_answers.md](evidence/genie_answers.md) |
-| **Databricks App** | Streamlit console: KPIs, review queue with evidence, Ask Genie | [app/app.py](app/app.py) | [evidence/app.md](evidence/app.md) |
+| Stage | Code | Execution evidence (text) |
+|---|---|---|
+| Lakeflow | `src/pipeline/ingest.py` | `evidence/01_lakeflow_ingest_pipeline_results.md` |
+| Unity Catalog | `src/gold/00_gold_governance.sql` | `evidence/02_unity_catalog_governance_results.md` |
+| GenAI enrichment | `src/gold/01_gold_genai_enrichment.py`, `src/enrichment_lib/` | `evidence/03_gold_genai_enrichment_run_logs.md` |
+| Evaluation (MLflow) | `src/eval/03_model_eval.py` | `evidence/04_model_eval_results_metrics.md`, `evidence/05_gold_product_enrichment_results.md` |
+| Lakebase | `src/lakebase/02_lakebase_sync_reviews.py` | `evidence/06_lakebase_sync_and_review_loop_results.md` |
+| Genie Agent | `scripts/genie_agent_space.py` | `evidence/07_genie_agent_answers_results.md` |
+| Databricks App | `lakebase_app/app.py` | `evidence/08_lakebase_app_results.md` |
 
-Everything is one Declarative Automation Bundle ([databricks.yml](databricks.yml)): pipeline, job, app.
+Everything is one Declarative Automation Bundle (`databricks.yml`, `resources/`): pipeline, weekly job (5 tasks,
+file-arrival trigger), app. Architecture, decisions, value model and AI usage: **[BUILD.md](BUILD.md)**.
+Business deck: `docs/DECK.md`. Reproduce: `docs/RUNBOOK.md`.
 
-## 4. How the AI decides (and why it is trustworthy)
-
-* **The LLM never invents numbers.** Nutrition comes from the matched public product; the LLM only decides
-  *which* product a messy retailer line is ("BARR CER AVENA C/ CHOC NEGRO 25G 6UN") and qualitative positioning.
-* **Cheap evidence first.** 76% of products resolve by exact barcode (free, deterministic). Only the rest go
-  through translation, embeddings and the LLM.
-* **Confidence is evidence-based, not self-reported.** Source tier × identity × judge × threshold margin ×
-  completeness, capped at 95 unless a human verified it. The calibration table shows accuracy rising with the
-  score (98-100% at ≥ 50, 48% below 30), so the review threshold (70) is meaningful.
-* **Business owns the definitions.** Segment thresholds live in [config/attributes.yml](config/attributes.yml)
-  (HIGH PROTEIN ≥ 15 g per bar, …), not in prompts; changing a definition re-segments only affected products.
-
-## 5. Results by product type (golden set, final evaluation)
-
-| Product type | Products | Correct match | Auto-enriched | Precision of auto-enriched |
-|---|---|---|---|---|
-| Branded, barcode in feed | 439 | 99.8% | 76% | 100% |
-| Barcode missing | 36 | 75% | 14% | 100% |
-| Private label, masked barcode | 58 | 64% | 9% | 100% |
-| Private label, no public footprint | 20 | 60% correctly "no match" | 0% (all to review, as intended) | n/a |
-
-Calibration (all products): confidence 90-100 → 98% correct · 70-89 → 100% · 50-69 → 99% · 30-49 → 79% · 0-29 → 48%.
-
-## 6. Repository
-
-```
-config/            business definitions (segments) and per-market file mappings
-src/pipeline/      Lakeflow declarative pipeline
-src/notebooks/     00 governance · 01 enrich · 02 Lakebase loop + sync · 03 evaluation
-src/enrichment_lib/ Spark-free logic (barcodes, evidence, rules, confidence, prompts), unit-tested
-app/               Databricks App (Streamlit)
-resources/         bundle resources: pipeline, weekly job, app
-scripts/           data download + synthetic deliveries, Genie space, evidence collectors
-data/              public reference snapshot, synthetic deliveries, golden labels (evaluation only)
-evidence/          execution evidence as text (job runs with outputs, event logs, query results, Genie answers)
-docs/              value case, decisions & trade-offs, AI usage, business deck
-tests/             19 unit tests
-```
-
-More: [docs/VALUE.md](docs/VALUE.md) · [docs/DECISIONS.md](docs/DECISIONS.md) · [docs/AI_USAGE.md](docs/AI_USAGE.md) · [docs/DECK.md](docs/DECK.md) · [docs/RUNBOOK.md](docs/RUNBOOK.md)
+## Why it is trustworthy
+* **The LLM never writes numbers**: nutrition comes from the matched public product; the LLM only decides *which*
+  product a messy line like `BARR CER AVENA C/ CHOC NEGRO 25G 5UN` is, and its qualitative positioning.
+* **Cheap evidence first**: 76% resolve by exact barcode at zero model cost.
+* **Calibrated confidence**: 98-100% correct at confidence ≥ 50, 48% below 30; the 70 threshold routes the right products to people.
+* **Business owns the definitions**: segment thresholds (HIGH PROTEIN ≥ 15 g per bar …) live in `config/attributes.yml`, not in prompts.
