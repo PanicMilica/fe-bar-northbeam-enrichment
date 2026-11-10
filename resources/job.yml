@@ -1,0 +1,67 @@
+resources:
+  jobs:
+    northbeam_weekly_enrichment:
+      name: northbeam_weekly_enrichment
+      description: >
+        Weekly product enrichment for Northbeam Retail Insights: ingest new deliveries (Lakeflow),
+        govern (Unity Catalog), enrich new products (GenAI), serve to the review app (Lakebase),
+        apply analyst decisions and evaluate.
+      trigger:
+        file_arrival:
+          url: /Volumes/${var.catalog}/${var.schema}/landing/
+        pause_status: PAUSED
+      environments:
+        - environment_key: default
+          spec:
+            client: "3"
+            dependencies:
+              - pyyaml
+              - numpy
+              - mlflow>=3.1
+              - databricks-sdk>=0.60
+              - psycopg[binary]>=3.1
+      tasks:
+        - task_key: ingest
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.northbeam_ingest.id}
+
+        - task_key: setup_and_governance
+          depends_on: [{task_key: ingest}]
+          notebook_task:
+            notebook_path: ../src/notebooks/00_setup_and_governance.sql
+            warehouse_id: ${var.warehouse_id}
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              data_owner: ${workspace.current_user.userName}
+
+        - task_key: enrich
+          depends_on: [{task_key: setup_and_governance}]
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/notebooks/01_enrich.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              model_extract: ${var.model_extract}
+              model_judge: ${var.model_judge}
+              embedding_model: ${var.embedding_model}
+
+        - task_key: apply_reviews_and_sync
+          depends_on: [{task_key: enrich}]
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/notebooks/02_apply_reviews_and_sync.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              lakebase_instance: ${var.lakebase_instance}
+
+        - task_key: evaluate
+          depends_on: [{task_key: apply_reviews_and_sync}]
+          environment_key: default
+          notebook_task:
+            notebook_path: ../src/notebooks/03_evaluate.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}

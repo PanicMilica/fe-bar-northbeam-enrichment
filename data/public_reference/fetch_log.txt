@@ -1,0 +1,36 @@
+Spain / Cereal bars p1: 100 returned, 95 kept
+  retry 1 after HTTP Error 503: Service Temporarily Unavailable
+  retry 2 after HTTP Error 503: Service Temporarily Unavailable
+  retry 3 after HTTP Error 503: Service Temporarily Unavailable
+  retry 4 after HTTP Error 503: Service Temporarily Unavailable
+Spain / Cereal bars p2: 0 returned, 0 kept
+Spain / Cereal bars p3: 100 returned, 91 kept
+  retry 1 after HTTP Error 503: Service Temporarily Unavailable
+  retry 2 after HTTP Error 503: Service Temporarily Unavailable
+  retry 3 after HTTP Error 503: Service Temporarily Unavailable
+Spain / Cereal bars p4: 71 returned, 58 kept
+Spain / Protein bars p1: 100 returned, 85 kept
+Spain / Protein bars p2: 100 returned, 91 kept
+  retry 1 after HTTP Error 503: Service Temporarily Unavailable
+  retry 2 after HTTP Error 503: Service Temporarily Unavailable
+  retry 3 after HTTP Error 503: Service Temporarily Unavailable
+  retry 4 after HTTP Error 503: Service Temporarily Unavailable
+Spain / Nut bars p1: 0 returned, 0 kept
+United States / Cereal bars p1: 100 returned, 95 kept
+United States / Cereal bars p2: 100 returned, 93 kept
+United States / Cereal bars p3: 100 returned, 94 kept
+United States / Cereal bars p4: 100 returned, 92 kept
+  retry 1 after HTTP Error 503: Service Temporarily Unavailable
+United States / Protein bars p1: 100 returned, 90 kept
+United States / Protein bars p2: 100 returned, 91 kept
+  retry 1 after HTTP Error 503: Service Temporarily Unavailable
+  retry 2 after HTTP Error 503: Service Temporarily Unavailable
+United States / Protein bars p3: 100 returned, 94 kept
+  retry 1 after HTTP Error 503: Service Temporarily Unavailable
+United States / Protein bars p4: 100 returned, 91 kept
+  retry 1 after HTTP Error 503: Service Temporarily Unavailable
+  retry 2 after HTTP Error 503: Service Temporarily Unavailable
+  retry 3 after HTTP Error 503: Service Temporarily Unavailable
+  retry 4 after HTTP Error 503: Service Temporarily Unavailable
+United States / Nut bars p1: 0 returned, 0 kept
+1160 products -> /Users/milica.panic/fe-bar-northbeam-enrichment/data/public_reference/off_snack_bars.jsonl

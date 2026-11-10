@@ -1,0 +1,19 @@
+resources:
+  pipelines:
+    northbeam_ingest:
+      name: northbeam_ingest
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      serverless: true
+      channel: CURRENT
+      photon: true
+      libraries:
+        - file:
+            path: ../src/pipeline/ingest.py
+      configuration:
+        catalog: ${var.catalog}
+        schema: ${var.schema}
+        bundle.sourcePath: ${workspace.file_path}/src
+      environment:
+        dependencies:
+          - pyyaml

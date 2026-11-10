@@ -1,0 +1,7 @@
+ES 2026W40: 230 products -> data/landing/ES/2026W40/northbeam_es_products_2026W40.csv
+ES 2026W41: 241 products -> data/landing/ES/2026W41/northbeam_es_products_2026W41.csv
+ES 2026W42: 259 products -> data/landing/ES/2026W42/northbeam_es_products_2026W42.csv
+US 2026W40: 230 products -> data/landing/US/2026W40/northbeam_us_products_2026W40.csv
+US 2026W41: 242 products -> data/landing/US/2026W41/northbeam_us_products_2026W41.csv
+US 2026W42: 261 products -> data/landing/US/2026W42/northbeam_us_products_2026W42.csv
+golden labels: 553 products {'barcode_missing': 36, 'branded': 439, 'private_label_masked': 58, 'private_label_unknown': 20} -> data/golden/golden_labels.csv

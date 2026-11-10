@@ -1,0 +1,6 @@
+command: ["streamlit", "run", "app.py", "--server.headless", "true"]
+env:
+  - name: LAKEBASE_INSTANCE
+    value: northbeam-enrichment
+  - name: GENIE_SPACE_ID
+    valueFrom: genie-space

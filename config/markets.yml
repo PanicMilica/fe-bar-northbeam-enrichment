@@ -1,0 +1,31 @@
+# Per-market mapping from a retailer delivery file to the standard product
+# schema. A new market is onboarded by adding a block here; no code change.
+
+ES:
+  file_glob: "northbeam_es_products_*.csv"
+  barcode_format: ean13            # EAN-13 with check digit
+  source_language: es              # descriptors are Spanish -> ai_translate
+  columns:
+    item_id: CODIGO_ITEM
+    barcode: EAN
+    descriptor: DESCRIPCION
+    brand: MARCA
+    manufacturer: FABRICANTE
+    size_text: TAMANO
+    pack_count_text: UNIDADES
+
+US:
+  file_glob: "northbeam_us_products_*.csv"
+  barcode_format: upc11_no_check   # 11 UPC digits, check digit dropped by the feed
+  source_language: en
+  columns:
+    item_id: ITEM_ID
+    barcode: UPC_11
+    descriptor: DESCRIPTION
+    brand: BRAND
+    manufacturer: MANUFACTURER
+    size_text: SIZE
+    pack_count_text: PACK_COUNT
+
+# Values that mean "no public barcode" (private label / masked / missing).
+non_public_barcode_values: [MASKED, "", "0", "N/A"]

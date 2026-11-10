@@ -1,0 +1,37 @@
+bundle:
+  name: northbeam-product-enrichment
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog
+    default: milica_test
+  schema:
+    description: Schema for all tables of the build
+    default: fe_bar_northbeam
+  model_extract:
+    description: Foundation Model endpoint for extraction (swap freely)
+    default: databricks-gpt-5-4-mini
+  model_judge:
+    description: Cheaper model for the LLM judge
+    default: databricks-gpt-5-4-nano
+  embedding_model:
+    description: Embedding endpoint for semantic name matching
+    default: databricks-bge-large-en
+  lakebase_instance:
+    description: Lakebase (managed Postgres) instance for operational serving
+    default: northbeam-enrichment
+  genie_space_id:
+    description: Genie space created by scripts/create_genie_space.py
+    default: 01f1dd21230215f2b2d4ece904a37498
+  warehouse_id:
+    description: SQL warehouse for the app and Genie
+    default: 148ccb90800933a1
+
+targets:
+  dev:
+    mode: development
+    default: true
+    # workspace host comes from the CLI profile: databricks bundle deploy -p <profile>

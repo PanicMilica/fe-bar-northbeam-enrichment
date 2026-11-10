@@ -1,0 +1,88 @@
+# Attribute definitions (GDS) for the enrichment pipeline.
+#
+# This file is the human-in-the-loop contract: business users review and edit
+# definitions here (or via the review table), and bumping `version` triggers
+# re-segmentation of every product classified under an older version.
+#
+# Thresholds follow Northbeam's (fictional) client-facing product hierarchy
+# for Snack Bars. Items marked ASSUMPTION are open questions for the
+# category team; analysts change them here, not in prompts.
+
+version: 1
+
+# ---------------------------------------------------------------------------
+# Externally sourced attributes (need web / barcode evidence)
+# ---------------------------------------------------------------------------
+external_attributes:
+  calories_kcal_per_bar:
+    type: number
+    unit: kcal
+    description: Energy per single bar / serving as sold.
+  protein_g_per_bar:
+    type: number
+    unit: g
+    description: Protein grams per single bar / serving as sold.
+  claimed_ingredient:
+    type: enum
+    description: >
+      Main ingredient claimed on pack or on the brand / retailer page
+      (the hero ingredient the product is positioned on).
+    values: [OATS, NUTS, FRUIT, WHEAT FLOUR, RICE, SEEDS, PROTEIN BLEND, CHOCOLATE, OTHER]
+
+# ---------------------------------------------------------------------------
+# Derived classification (rules first, LLM only for qualitative calls)
+# ---------------------------------------------------------------------------
+global_category:
+  description: Global Category inside Super Category "Biscuits & Baked Snacks".
+  values: [BISCUITS, CAKES & PASTRIES, SNACK BARS]
+
+snack_bar_segments:
+  # Evaluated top to bottom; the first matching segment wins.
+  # ASSUMPTION: priority order. HIGH PROTEIN overrides treat-like flavour
+  # cues; the rest of the order is to be confirmed by the category team.
+  - segment: HIGH PROTEIN
+    sub_segment: HIGH PROTEIN
+    rule: {protein_g_min: 15}
+    definition: 15 g or more protein per bar.
+  - segment: DIET
+    sub_segment: DIET
+    rule: {positioning: [diet]}
+    definition: >
+      Positioned for weight control / meal replacement / calorie control
+      (e.g. "control", "line", "slim", meal-replacement claims).
+  - segment: ENERGY
+    sub_segment: ENERGY
+    rule: {protein_g_min: 5, protein_g_max: 14.99, calories_kcal_min: 200.01}
+    definition: 5-14 g protein and more than 200 kcal per bar.
+  # TREAT is checked before NOURISH so low-calorie confectionery
+  # (e.g. a 90 kcal marshmallow crispy-rice bar) is not classed as NOURISH.
+  - segment: TREAT
+    sub_segment: TREAT
+    rule: {protein_g_max: 4.99, positioning: [indulgent]}
+    definition: Indulgent / confectionery-like positioning (chocolate coated, marshmallow, candy-bar style) with under 5 g protein.
+  - segment: NOURISH
+    sub_segment: FRUIT &/OR NUT
+    rule: {calories_kcal_max: 199.99, positioning: [fruit_nut]}
+    definition: Under 200 kcal, fruit and/or nut based.
+  - segment: NOURISH
+    sub_segment: ALL OTHER MID PROTEIN
+    rule: {calories_kcal_max: 199.99, positioning: [wholesome, fruit_nut, diet, indulgent]}
+    definition: Under 200 kcal, not fruit/nut based (cereal, oat, grain bars etc.).
+  # ASSUMPTION: products that match no rule (e.g. >200 kcal and <5 g protein
+  # with wholesome positioning) fall back to TREAT and are routed to review.
+  - segment: TREAT
+    sub_segment: TREAT
+    rule: {fallback: true}
+    definition: Fallback - no other rule matched; always sent to human review.
+
+positioning_values:
+  diet: Weight-control, meal-replacement or calorie-controlled positioning.
+  fruit_nut: Fruit and/or nuts are the main ingredients (e.g. date & nut, raw fruit bars).
+  indulgent: Confectionery / treat positioning (chocolate coating, caramel, marshmallow).
+  wholesome: Everyday cereal / oat / grain bar positioning.
+
+review:
+  # Products below this confidence go to the human review queue.
+  min_confidence: 70
+  # Margin (fraction of threshold) under which a numeric rule is "borderline".
+  borderline_margin: 0.10
